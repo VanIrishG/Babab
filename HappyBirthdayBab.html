@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>For You | 2026</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💗</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,900;1,400&family=Plus+Jakarta+Sans:wght@200;400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { background: #030308; color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+
+        /* Single combined canvas for nebula + stars + particles */
+        #scene-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        #trail-canvas { position: fixed; top: 0; left: 0; z-index: 10000; pointer-events: none; }
+
+        /* Floating color orbs - CSS animated, always visible */
+        .orb {
+            position: fixed; border-radius: 50%; pointer-events: none;
+            filter: blur(100px); z-index: 1;
+        }
+        #orb1 { width: 500px; height: 500px; background: rgba(255,77,109,0.10); top: 15%; left: 5%; animation: orbFloat1 20s ease-in-out infinite; }
+        #orb2 { width: 400px; height: 400px; background: rgba(123,47,247,0.08); top: 55%; right: 0%; animation: orbFloat2 25s ease-in-out infinite; }
+        #orb3 { width: 350px; height: 350px; background: rgba(45,127,247,0.07); bottom: 5%; left: 35%; animation: orbFloat3 22s ease-in-out infinite; }
+        #orb4 { width: 300px; height: 300px; background: rgba(255,107,157,0.06); top: 35%; left: 55%; animation: orbFloat4 18s ease-in-out infinite; }
+
+        @keyframes orbFloat1 { 0%,100%{ transform: translate(0,0); } 50%{ transform: translate(60px,-50px); } }
+        @keyframes orbFloat2 { 0%,100%{ transform: translate(0,0); } 50%{ transform: translate(-50px,40px); } }
+        @keyframes orbFloat3 { 0%,100%{ transform: translate(0,0); } 50%{ transform: translate(40px,-60px); } }
+        @keyframes orbFloat4 { 0%,100%{ transform: translate(0,0); } 50%{ transform: translate(-60px,50px); } }
+
+        /* Loader sits above canvas but is transparent to show stars */
+        #loader {
+            position: fixed; inset: 0; z-index: 5000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: transparent;
+        }
+        #loader.hidden { pointer-events: none; display: none; }
+
+        .serif { font-family: 'Playfair Display', serif; }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 40px;
+        }
+
+        .glow-text { text-shadow: 0 0 40px rgba(255, 255, 255, 0.3), 0 0 80px rgba(255, 100, 150, 0.15); }
+
+        .chismis-highlight {
+            color: #ffb3c1; font-style: italic;
+            border-left: 2px solid #ff4d6d; padding-left: 1.5rem; margin-top: 1rem;
+        }
+
+        /* All content above the canvas */
+        main { position: relative; z-index: 2; }
+
+        .hero { height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1.5rem; }
+        .hero h1 { font-size: clamp(3.5rem, 12vw, 11rem); line-height: 1; margin-bottom: 1rem; }
+        .hero h1 span { font-style: italic; font-weight: 400; opacity: 0.4; }
+        .hero .scroll-hint { color: rgba(255,255,255,0.3); letter-spacing: 0.5em; font-size: 10px; text-transform: uppercase; }
+
+        .letter-section { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 10rem 1.5rem; }
+        .letter-box { max-width: 56rem; padding: clamp(3rem, 6vw, 6rem); position: relative; overflow: hidden; }
+        .letter-box .glow-blob { position: absolute; top: -40px; right: -40px; width: 16rem; height: 16rem; background: rgba(236, 72, 153, 0.08); filter: blur(100px); border-radius: 50%; pointer-events: none; }
+        .letter-box h2 { font-size: clamp(2rem, 5vw, 3.75rem); margin-bottom: 3rem; font-style: italic; line-height: 1.2; }
+        .letter-box h2 span { color: rgba(255,255,255,0.3); font-weight: 400; }
+        .letter-box .body-text { display: flex; flex-direction: column; gap: 2.5rem; font-size: clamp(1rem, 2.5vw, 1.5rem); color: rgba(255,255,255,0.65); font-weight: 300; line-height: 1.8; }
+
+        .gallery { padding: 10rem 2.5rem; max-width: 80rem; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 5rem; }
+        @media(min-width: 768px) { .gallery { grid-template-columns: 1fr 1fr; } }
+        .gallery-item { position: relative; overflow: hidden; border-radius: 3rem; height: 600px; }
+        @media(min-width: 768px) { .gallery-item:nth-child(2) { margin-top: 8rem; } }
+        .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 1s ease; }
+        .gallery-item:hover img { transform: scale(1.1); }
+
+        .finale { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .finale h2 { font-size: clamp(3rem, 8vw, 8vw); margin-bottom: 3rem; font-style: italic; }
+        .finale button {
+            padding: 1rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.1);
+            background: transparent; color: #fff; font-family: inherit; font-size: 0.75rem;
+            letter-spacing: 0.2em; cursor: pointer; transition: all 0.4s ease;
+        }
+        .finale button:hover { background: #fff; color: #000; }
+
+        #start-btn {
+            opacity: 0; padding: 1rem 3rem; border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(0,0,0,0.3); color: #fff; font-family: inherit;
+            font-size: 10px; letter-spacing: 0.5em; text-transform: uppercase;
+            cursor: pointer; transition: all 0.6s ease; border-radius: 60px;
+        }
+        #start-btn:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+        .loader-text { font-size: 1.5rem; letter-spacing: 0.2em; }
+        #music-drop { display: none; }
+    </style>
+</head>
+<body>
+
+<!-- Single canvas for all background effects -->
+<canvas id="scene-canvas"></canvas>
+
+<!-- Floating color orbs (pure CSS) -->
+<div class="orb" id="orb1"></div>
+<div class="orb" id="orb2"></div>
+<div class="orb" id="orb3"></div>
+<div class="orb" id="orb4"></div>
+
+<!-- Heart trail canvas -->
+<canvas id="trail-canvas"></canvas>
+
+<!-- LOADER (transparent bg so stars show through) -->
+<div id="loader">
+    <div style="text-align:center;">
+        <p class="serif italic loader-text" style="opacity:0.8;">Thinking of you...</p>
+        <div id="music-drop">
+            <input type="file" id="music-input" accept="audio/*">
+        </div>
+        <button id="start-btn" style="margin-top:2.5rem;">Step Into Our Memory</button>
+    </div>
+</div>
+
+<audio id="music" loop>
+    <source src="my-song.mp3" type="audio/mpeg">
+</audio>
+
+<main id="content" style="visibility:hidden;">
+
+    <section class="hero">
+        <div style="z-index:10;">
+            <h1 class="serif glow-text">Happy <br><span>Birthday.</span></h1>
+            <p class="scroll-hint">Scroll to begin</p>
+        </div>
+    </section>
+
+    <section class="letter-section">
+        <div class="letter-box glass">
+            <div class="glow-blob"></div>
+            <h2 class="serif">My appreciation, <br><span>my support.</span></h2>
+            <div class="body-text">
+                <p class="reveal">
+                    This tablet is a small token for a huge reason. You were with me when I didn't have anything but a vision. You stayed when most wouldn't, and that's a debt of love I'll always honor.
+                </p>
+                <p class="reveal">
+                    It represents my full support for whatever you want to do. Whether it's your work, your art, or your future projects — I'm in your corner.
+                </p>
+                <div class="chismis-highlight reveal">
+                    "And mostly, for your comfort while reading those social media chismis. I want you to have the best view while you're enjoying your time. hahaha!"
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="gallery">
+        <div class="gallery-item reveal-img">
+            <img src="https://images.unsplash.com/photo-1516589174184-c68d8e5f6b21?w=800" alt="Memory 1">
+        </div>
+        <div class="gallery-item reveal-img">
+            <img src="https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?w=800" alt="Memory 2">
+        </div>
+    </section>
+
+    <section class="finale">
+        <h2 class="serif">I love you.</h2>
+        <button id="replay-btn">REPLAY STORY</button>
+    </section>
+
+</main>
+
+<script>
+// ========================================
+// SINGLE CANVAS: Nebula + Stars + Particles
+// ========================================
+const C = document.getElementById('scene-canvas');
+const ctx = C.getContext('2d');
+
+function resize() {
+    C.width = window.innerWidth;
+    C.height = window.innerHeight;
+    // Re-scatter stars on resize
+    allStars.forEach(s => { s.x = Math.random() * C.width; s.y = Math.random() * C.height; });
+}
+window.addEventListener('resize', resize);
+
+// --- Stars ---
+const allStars = [];
+for (let i = 0; i < 200; i++) {
+    allStars.push({
+        x: 0, y: 0,
+        r: Math.random() * 1.8 + 0.3,
+        baseA: Math.random() * 0.8 + 0.2,
+        speed: Math.random() * 0.03 + 0.008,
+        phase: Math.random() * Math.PI * 2,
+        color: Math.random() > 0.85 ? '#ffcce0' : (Math.random() > 0.7 ? '#c4b5fd' : '#ffffff')
+    });
+}
+
+// --- Floating mini hearts ---
+const bgHearts = [];
+for (let i = 0; i < 18; i++) {
+    bgHearts.push({
+        x: 0, y: 0, size: Math.random() * 6 + 3,
+        vy: Math.random() * 0.25 + 0.1,
+        swing: Math.random() * Math.PI * 2,
+        swingSpd: Math.random() * 0.008 + 0.003,
+        alpha: Math.random() * 0.08 + 0.02,
+        rot: Math.random() * 0.4 - 0.2
+    });
+}
+function resetHeart(h, init) {
+    h.x = Math.random() * C.width;
+    h.y = init ? Math.random() * C.height : C.height + 30;
+}
+
+// --- Shooting stars ---
+const shoots = [];
+function newShoot() {
+    return {
+        x: Math.random() * C.width * 0.7,
+        y: Math.random() * C.height * 0.35,
+        angle: Math.PI / 5 + Math.random() * 0.3,
+        speed: Math.random() * 5 + 4,
+        opacity: 1,
+        trail: [],
+        active: true
+    };
+}
+
+// --- Sparkles ---
+const sparkles = [];
+for (let i = 0; i < 50; i++) {
+    sparkles.push({
+        x: 0, y: 0,
+        size: Math.random() * 3 + 1,
+        alpha: 0,
+        maxA: Math.random() * 0.35 + 0.1,
+        fadeIn: true,
+        speed: Math.random() * 0.006 + 0.002,
+        color: Math.random() > 0.5 ? '255,200,220' : '190,170,255'
+    });
+}
+function resetSparkle(s) {
+    s.x = Math.random() * C.width;
+    s.y = Math.random() * C.height;
+    s.alpha = 0; s.fadeIn = true;
+}
+
+// Init positions
+resize();
+bgHearts.forEach(h => resetHeart(h, true));
+sparkles.forEach(s => resetSparkle(s));
+
+let frame = 0;
+let lastShootFrame = 0;
+
+function drawHeart(cx, cy, d, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot || 0);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(0, -d/2, -d, -d/2, -d, 0);
+    ctx.bezierCurveTo(-d, d/2, 0, d, 0, d);
+    ctx.bezierCurveTo(0, d, d, d/2, d, 0);
+    ctx.bezierCurveTo(d, -d/2, 0, -d/2, 0, 0);
+    ctx.fill();
+    ctx.restore();
+}
+
+function render() {
+    frame++;
+    const w = C.width, h = C.height;
+
+    // --- Clear with dark fill (acts as nebula base) ---
+    const t = frame * 0.002;
+    const gx = w/2 + Math.cos(t) * 300;
+    const gy = h/2 + Math.sin(t * 0.7) * 200;
+    const g = ctx.createRadialGradient(gx, gy, 0, w/2, h/2, w);
+    g.addColorStop(0, '#120822');
+    g.addColorStop(0.3, '#0e0618');
+    g.addColorStop(0.6, '#080812');
+    g.addColorStop(1, '#030308');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // --- Stars ---
+    allStars.forEach(s => {
+        const a = s.baseA + Math.sin(frame * s.speed + s.phase) * 0.4;
+        const alpha = Math.max(0, Math.min(1, a));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = s.color;
+        ctx.globalAlpha = alpha;
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // --- Sparkles ---
+    sparkles.forEach(s => {
+        if (s.fadeIn) {
+            s.alpha += s.speed;
+            if (s.alpha >= s.maxA) s.fadeIn = false;
+        } else {
+            s.alpha -= s.speed;
+            if (s.alpha <= 0) resetSparkle(s);
+        }
+        ctx.save();
+        ctx.globalAlpha = s.alpha;
+        ctx.strokeStyle = `rgba(${s.color},1)`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(s.x - s.size, s.y); ctx.lineTo(s.x + s.size, s.y);
+        ctx.moveTo(s.x, s.y - s.size); ctx.lineTo(s.x, s.y + s.size);
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // --- Floating hearts ---
+    bgHearts.forEach(bh => {
+        bh.y -= bh.vy;
+        bh.swing += bh.swingSpd;
+        bh.x += Math.sin(bh.swing) * 0.3;
+        if (bh.y < -40) resetHeart(bh, false);
+        ctx.save();
+        ctx.globalAlpha = bh.alpha;
+        ctx.fillStyle = '#ff4d6d';
+        drawHeart(bh.x, bh.y, bh.size, bh.rot);
+        ctx.restore();
+    });
+
+    // --- Shooting stars ---
+    if (frame - lastShootFrame > 250 + Math.random() * 300) {
+        shoots.push(newShoot());
+        lastShootFrame = frame;
+    }
+    for (let i = shoots.length - 1; i >= 0; i--) {
+        const s = shoots[i];
+        s.x += Math.cos(s.angle) * s.speed;
+        s.y += Math.sin(s.angle) * s.speed;
+        s.trail.push({ x: s.x, y: s.y });
+        if (s.trail.length > 25) s.trail.shift();
+        s.opacity -= 0.012;
+        if (s.opacity <= 0) { shoots.splice(i, 1); continue; }
+
+        ctx.save();
+        for (let j = 1; j < s.trail.length; j++) {
+            const p = j / s.trail.length;
+            ctx.beginPath();
+            ctx.moveTo(s.trail[j-1].x, s.trail[j-1].y);
+            ctx.lineTo(s.trail[j].x, s.trail[j].y);
+            ctx.strokeStyle = `rgba(255,255,255,${p * s.opacity * 0.5})`;
+            ctx.lineWidth = p * 2;
+            ctx.stroke();
+        }
+        const tip = s.trail[s.trail.length - 1];
+        ctx.beginPath();
+        ctx.arc(tip.x, tip.y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${s.opacity})`;
+        ctx.fill();
+        ctx.restore();
+    }
+
+    requestAnimationFrame(render);
+}
+render();
+
+// ========== HEART CURSOR ==========
+const trailCanvas = document.getElementById('trail-canvas');
+const trailCtx = trailCanvas.getContext('2d');
+let cursorHearts = [];
+
+function resizeTrail() {
+    trailCanvas.width = window.innerWidth;
+    trailCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeTrail);
+resizeTrail();
+
+class CursorHeart {
+    constructor(x, y) {
+        this.x = x; this.y = y;
+        this.size = Math.random() * 10 + 8;
+        this.opacity = 1;
+        this.speedY = Math.random() * 0.5 + 0.3;
+        this.swingSpeed = Math.random() * 0.05;
+        this.life = Math.random() * Math.PI * 2;
+    }
+    update() {
+        this.y -= this.speedY;
+        this.x += Math.sin(this.life) * 0.5;
+        this.life += this.swingSpeed;
+        this.opacity -= 0.005;
+    }
+    draw() {
+        if (this.opacity <= 0) return;
+        trailCtx.save();
+        trailCtx.globalAlpha = this.opacity;
+        trailCtx.fillStyle = '#ff4d6d';
+        trailCtx.shadowBlur = 15;
+        trailCtx.shadowColor = '#ff4d6d';
+        const d = this.size;
+        trailCtx.beginPath();
+        trailCtx.moveTo(this.x, this.y);
+        trailCtx.bezierCurveTo(this.x, this.y - d/2, this.x - d, this.y - d/2, this.x - d, this.y);
+        trailCtx.bezierCurveTo(this.x - d, this.y + d/2, this.x, this.y + d, this.x, this.y + d);
+        trailCtx.bezierCurveTo(this.x, this.y + d, this.x + d, this.y + d/2, this.x + d, this.y);
+        trailCtx.bezierCurveTo(this.x + d, this.y - d/2, this.x, this.y - d/2, this.x, this.y);
+        trailCtx.fill();
+        trailCtx.restore();
+    }
+}
+
+function spawnHeart(x, y) {
+    if (cursorHearts.length < 60 && Math.random() > 0.85) {
+        cursorHearts.push(new CursorHeart(x, y));
+    }
+}
+window.addEventListener('mousemove', e => spawnHeart(e.clientX, e.clientY));
+window.addEventListener('touchmove', e => {
+    spawnHeart(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+function animateCursorHearts() {
+    trailCtx.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+    cursorHearts.forEach(h => { h.update(); h.draw(); });
+    cursorHearts = cursorHearts.filter(h => h.opacity > 0);
+    requestAnimationFrame(animateCursorHearts);
+}
+animateCursorHearts();
+
+// ========== MUSIC ==========
+const musicInput = document.getElementById('music-input');
+const audioEl = document.getElementById('music');
+let musicReady = true;
+musicInput.addEventListener('change', e => {
+    if (e.target.files.length) {
+        const file = e.target.files[0];
+        if (!file.type.startsWith('audio/')) return;
+        audioEl.src = URL.createObjectURL(file);
+        musicReady = true;
+    }
+});
+
+// ========== LOADER ==========
+gsap.to("#start-btn", { opacity: 1, y: -10, delay: 1.5, duration: 1 });
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    if (musicReady) audioEl.play().catch(() => {});
+    gsap.to("#loader", {
+        opacity: 0, duration: 1.5, ease: "expo.inOut",
+        onComplete: () => {
+            document.getElementById('loader').classList.add('hidden');
+            document.getElementById('content').style.visibility = 'visible';
+            initAnims();
+        }
+    });
+});
+
+// ========== SCROLL ANIMATIONS ==========
+function initAnims() {
+    gsap.registerPlugin(ScrollTrigger);
+    gsap.from(".hero h1", { y: 80, opacity: 0, duration: 2, ease: "expo.out" });
+    gsap.from(".hero .scroll-hint", { opacity: 0, delay: 1.5, duration: 2 });
+
+    document.querySelectorAll('.reveal').forEach(el => {
+        gsap.from(el, {
+            scrollTrigger: { trigger: el, start: "top 90%" },
+            y: 30, opacity: 0, duration: 1.5, ease: "power2.out"
+        });
+    });
+    document.querySelectorAll('.reveal-img').forEach(el => {
+        gsap.from(el, {
+            scrollTrigger: { trigger: el, start: "top 85%" },
+            scale: 1.05, opacity: 0, duration: 2, ease: "expo.out"
+        });
+    });
+}
+
+document.getElementById('replay-btn').addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+</script>
+</body>
+</html>
